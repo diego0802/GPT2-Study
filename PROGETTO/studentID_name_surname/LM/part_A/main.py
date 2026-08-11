@@ -81,17 +81,7 @@ def experiment_1a():
     tokenizer.pad_token = tokenizer.eos_token
     print(f"Pad token ID: {tokenizer.pad_token_id}")
 
-    train_loader, dev_loader, test_loader, tokenizer = get_dataloaders(
-        tokenizer,
-        "dataset/PennTreeBank/ptb.train.txt",
-        "dataset/PennTreeBank/ptb.valid.txt", 
-        "dataset/PennTreeBank/ptb.test.txt",
-        batch_size=8,
-        device=device
-    )
-    
-    criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
-    
+    # Definisci le configurazioni PRIMA del loop
     configs = [
         {"lr": 0.001, "d_model": 20, "n_heads": 1, "num_layers": 1, "ff_dim": 20, "dropout": 0.0, "weight_tying": False},
         {"lr": 0.0005, "d_model": 64, "n_heads": 1, "num_layers": 1, "ff_dim": 64, "dropout": 0.0, "weight_tying": False},
@@ -101,11 +91,30 @@ def experiment_1a():
         {"lr": 0.0003, "d_model": 128, "n_heads": 4, "num_layers": 2, "ff_dim": 512, "dropout": 0.1, "weight_tying": True},
     ]
     
+    criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
     results = []
     
     for config in configs:
         print(f"\n{'='*60}\nTesting config: {config}\n{'='*60}")
         start_time = time.time()
+        
+        # ✅ SCEGLI IL BATCH SIZE IN BASE ALLA CONFIGURAZIONE
+        if config["d_model"] >= 128 and config["num_layers"] >= 2:
+            batch_size = 16
+        elif config["d_model"] >= 64:
+            batch_size = 32
+        else:
+            batch_size = 64
+        
+        # ✅ CREA I DATALOADER CON IL BATCH SIZE GIUSTO
+        train_loader, dev_loader, test_loader, tokenizer = get_dataloaders(
+            tokenizer,
+            "dataset/PennTreeBank/ptb.train.txt",
+            "dataset/PennTreeBank/ptb.valid.txt", 
+            "dataset/PennTreeBank/ptb.test.txt",
+            batch_size=batch_size,
+            device=device
+        )
         
         model = GPT2(
             vocab_size=len(tokenizer),
@@ -130,7 +139,7 @@ def experiment_1a():
             device=device
         )
         
-        # 🔥 CORREZIONE: riceve 3 valori da eval_loop
+        # Test
         test_ppl, test_loss, test_acc = eval_loop(test_loader, criterion, best_model, tokenizer)
         elapsed = time.time() - start_time
         
@@ -158,9 +167,7 @@ def experiment_1a():
         torch.save(best_model.state_dict(), f"best_model_d{config['d_model']}_l{config['num_layers']}.pt")
         print(f"💾 Modello salvato: best_model_d{config['d_model']}_l{config['num_layers']}.pt")
     
-    # ============================================================
-    # 4. TABELLA FINALE DEI RISULTATI
-    # ============================================================
+    # Tabella finale
     print("\n" + "="*80)
     print("📊 TABELLA FINALE DEI RISULTATI")
     print("="*80)
@@ -172,7 +179,6 @@ def experiment_1a():
               f"{r['best_val_ppl']:<10.2f} {r['test_ppl']:<10.2f} {r['test_acc']:<10.4f} {r['time']:<10.1f}")
     print("="*80)
 
-    # Salva tabella finale
     df_final = pd.DataFrame(results)
     df_final.to_csv("final_results.csv", index=False)
     print("✅ Tabella finale salvata in 'final_results.csv'")
