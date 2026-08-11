@@ -125,7 +125,7 @@ def experiment_1a():
             criterion,
             tokenizer,
             lr=config["lr"],
-            n_epochs=100,
+            n_epochs=1,
             patience=10,
             device=device
         )
