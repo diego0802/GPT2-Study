@@ -126,6 +126,18 @@ def experiment_1a():
             dropout=config["dropout"],
             weight_tying=config["weight_tying"]
         )
+
+        if config["d_model"] >= 128 and config["num_layers"] >= 2:
+            n_epochs = 60
+            batch_size = 16
+        elif config["d_model"] >= 64:
+            n_epochs = 40
+            batch_size = 32
+        else:
+            n_epochs = 25
+            batch_size = 64
+
+        patience = 5
         
         best_model, best_ppl, losses_train, losses_dev = train_model(
             model, 
@@ -134,8 +146,8 @@ def experiment_1a():
             criterion,
             tokenizer,
             lr=config["lr"],
-            n_epochs=1,
-            patience=10,
+            n_epochs=n_epochs,
+            patience=patience,
             device=device
         )
         
