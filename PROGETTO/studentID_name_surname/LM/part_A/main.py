@@ -69,7 +69,7 @@ def save_report(config, losses_train, losses_dev, sampled_epochs, final_ppl, fin
 
 
 # ============================================================
-# 3. ESPERIMENTO PRINCIPALE
+# 3. ESPERIMENTO PRINCIPALE (VERSIONE VELOCE)
 # ============================================================
 def experiment_1a():
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -81,14 +81,13 @@ def experiment_1a():
     tokenizer.pad_token = tokenizer.eos_token
     print(f"Pad token ID: {tokenizer.pad_token_id}")
 
-    # Definisci le configurazioni PRIMA del loop
+    # CONFIGURAZIONI RIDOTTE (solo modelli piccoli/medi)
     configs = [
         {"lr": 0.001, "d_model": 20, "n_heads": 1, "num_layers": 1, "ff_dim": 20, "dropout": 0.0, "weight_tying": False},
         {"lr": 0.0005, "d_model": 64, "n_heads": 1, "num_layers": 1, "ff_dim": 64, "dropout": 0.0, "weight_tying": False},
         {"lr": 0.0005, "d_model": 64, "n_heads": 4, "num_layers": 1, "ff_dim": 64, "dropout": 0.0, "weight_tying": False},
         {"lr": 0.0005, "d_model": 64, "n_heads": 4, "num_layers": 1, "ff_dim": 64, "dropout": 0.1, "weight_tying": False},
         {"lr": 0.0005, "d_model": 64, "n_heads": 4, "num_layers": 1, "ff_dim": 64, "dropout": 0.1, "weight_tying": True},
-        {"lr": 0.0003, "d_model": 128, "n_heads": 4, "num_layers": 2, "ff_dim": 512, "dropout": 0.1, "weight_tying": True},
     ]
     
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
@@ -98,15 +97,9 @@ def experiment_1a():
         print(f"\n{'='*60}\nTesting config: {config}\n{'='*60}")
         start_time = time.time()
         
-        # ✅ SCEGLI IL BATCH SIZE IN BASE ALLA CONFIGURAZIONE
-        if config["d_model"] >= 128 and config["num_layers"] >= 2:
-            batch_size = 16
-        elif config["d_model"] >= 64:
-            batch_size = 32
-        else:
-            batch_size = 64
+        # BATCH SIZE FISSO (32 per tutte le configurazioni)
+        batch_size = 32
         
-        # ✅ CREA I DATALOADER CON IL BATCH SIZE GIUSTO
         train_loader, dev_loader, test_loader, tokenizer = get_dataloaders(
             tokenizer,
             "dataset/PennTreeBank/ptb.train.txt",
@@ -127,17 +120,15 @@ def experiment_1a():
             weight_tying=config["weight_tying"]
         )
 
-        if config["d_model"] >= 128 and config["num_layers"] >= 2:
-            n_epochs = 60
-            batch_size = 16
+        # EPOCHE RIDOTTE (max 35)
+        if config["d_model"] >= 128:
+            n_epochs = 30
         elif config["d_model"] >= 64:
-            n_epochs = 40
-            batch_size = 32
+            n_epochs = 30
         else:
             n_epochs = 25
-            batch_size = 64
 
-        patience = 5
+        patience = 3
         
         best_model, best_ppl, losses_train, losses_dev = train_model(
             model, 
