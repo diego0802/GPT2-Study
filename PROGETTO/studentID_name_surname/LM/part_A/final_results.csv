@@ -1,0 +1,6 @@
+config,best_val_ppl,test_ppl,test_loss,test_acc,time
+"{'lr': 0.001, 'd_model': 20, 'n_heads': 1, 'num_layers': 1, 'ff_dim': 20, 'dropout': 0.0, 'weight_tying': False}",55.531006886878394,48.24210305888998,"tensor(3.8762, device='cuda:0')",0.38219297042826456,3229.10386633873
+"{'lr': 0.0005, 'd_model': 64, 'n_heads': 1, 'num_layers': 1, 'ff_dim': 64, 'dropout': 0.0, 'weight_tying': False}",50.75762211934674,44.1323073075831,"tensor(3.7872, device='cuda:0')",0.40416838063896887,4191.114502191544
+"{'lr': 0.0005, 'd_model': 64, 'n_heads': 4, 'num_layers': 1, 'ff_dim': 64, 'dropout': 0.0, 'weight_tying': False}",49.78571996353458,43.608407225456475,"tensor(3.7752, device='cuda:0')",0.4046437222907811,4204.123514890671
+"{'lr': 0.0005, 'd_model': 64, 'n_heads': 4, 'num_layers': 1, 'ff_dim': 64, 'dropout': 0.1, 'weight_tying': False}",47.03453190772002,41.499526610155094,"tensor(3.7257, device='cuda:0')",0.3942227706933589,4204.556160926819
+"{'lr': 0.0005, 'd_model': 64, 'n_heads': 4, 'num_layers': 1, 'ff_dim': 64, 'dropout': 0.1, 'weight_tying': True}",50.45889422128375,44.05034377650584,"tensor(3.7853, device='cuda:0')",0.3956396544631839,4097.906218528748
