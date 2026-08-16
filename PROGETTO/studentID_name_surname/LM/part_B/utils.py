@@ -1,5 +1,10 @@
+import os
+
+from matplotlib import pyplot as plt
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
+import urllib
 from transformers import AutoTokenizer
 from functools import partial
 
@@ -56,3 +61,54 @@ def get_dataloaders(tokenizer, train_path, dev_path, test_path, batch_size=8, de
     test_loader = DataLoader(test_dataset, batch_size=batch_size*2, collate_fn=collate)
     
     return train_loader, dev_loader, test_loader, tokenizer
+
+def download_dataset():
+    """Scarica i file del Penn Treebank se non esistono"""
+    base_url = "https://raw.githubusercontent.com/massimo-rizzoli/NLU-2026-Labs/main/labs/dataset/PennTreeBank/"
+    files = ["ptb.train.txt", "ptb.valid.txt", "ptb.test.txt"]
+    os.makedirs("dataset/PennTreeBank", exist_ok=True)
+    
+    for file in files:
+        url = base_url + file
+        path = f"dataset/PennTreeBank/{file}"
+        if not os.path.exists(path):
+            print(f"Downloading {file}...")
+            urllib.request.urlretrieve(url, path)
+        else:
+            print(f"{file} already exists")
+
+def save_report(config, losses_train, losses_dev, sampled_epochs, final_ppl, final_loss, final_acc, save_csv=True, save_plot=True):
+    losses_train = [float(x) for x in losses_train] if isinstance(losses_train, list) else losses_train
+    losses_dev = [float(x) for x in losses_dev] if isinstance(losses_dev, list) else losses_dev
+    
+    df = pd.DataFrame({
+        'epoch': sampled_epochs,
+        'train_loss': losses_train,
+        'dev_loss': losses_dev
+    })
+    
+    if save_csv:
+        csv_name = f"report_d{config['d_model']}_l{config['num_layers']}_d{config['dropout']}.csv"
+        df.to_csv(csv_name, index=False)
+        print(f"✅ CSV salvato: {csv_name}")
+    
+    if save_plot:
+        plt.figure(figsize=(8, 5))
+        plt.plot(sampled_epochs, losses_train, label='Train Loss')
+        plt.plot(sampled_epochs, losses_dev, label='Dev Loss')
+        plt.title(f"Training curves - d_model={config['d_model']}, layers={config['num_layers']}")
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.grid(True)
+        plot_name = f"plot_d{config['d_model']}_l{config['num_layers']}_d{config['dropout']}.png"
+        plt.savefig(plot_name)
+        plt.close()
+        print(f"✅ Grafico salvato: {plot_name}")
+    
+    print("\n📊 RIEPILOGO CONFIGURAZIONE")
+    for k, v in config.items():
+        print(f"{k}: {v}")
+    print(f"Final Test PPL: {final_ppl:.2f}")
+    print(f"Final Test Loss: {final_loss:.4f}")
+    print(f"Final Test Acc: {final_acc:.4f}")

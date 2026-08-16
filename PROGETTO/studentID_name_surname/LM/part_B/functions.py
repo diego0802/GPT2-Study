@@ -33,9 +33,15 @@ def eval_loop_1b(data, model, tokenizer):
             output = model(input_ids, labels=labels)
             loss_array.append(output.loss.item() * n_tokens)
             number_of_tokens.append(n_tokens)
+
+            preds = torch.argmax(output.logits, dim=-1)
+            mask = labels != -100
+            correct += (preds == labels).masked_select(mask).sum().item()
+            total += mask.sum().item()
     loss_to_return = sum(loss_array) / sum(number_of_tokens)
     ppl = math.exp(loss_to_return)
-    return ppl, loss_to_return
+    acc = correct / total if total > 0 else 0.0
+    return ppl, loss_to_return, acc
 
 def train_model_1b(model, train_loader, dev_loader, tokenizer, lr=0.001, n_epochs=100, patience=3, device="cpu"):
     model = model.to(device)
