@@ -24,7 +24,7 @@ def experiment_1b():
         "dataset/PennTreeBank/ptb.train.txt",
         "dataset/PennTreeBank/ptb.valid.txt",
         "dataset/PennTreeBank/ptb.test.txt",
-        batch_size=32,
+        batch_size=64,
         device=DEVICE
     )
     
@@ -71,21 +71,22 @@ def experiment_1b():
 
         # Epoche in base al rank
         if config["rank"] >= 16:
-            n_epochs = 30
-            patience = 3
+            n_epochs = 14
         elif config["rank"] >= 8:
-            n_epochs = 25
-            patience = 4
+            n_epochs = 10
+        elif config["rank"] >= 4:
+            n_epochs = 8
+        elif config["rank"] >= 2:
+            n_epochs = 6
         else:
-            n_epochs = 20
-            patience = 3
+            n_epochs = 5
         
         # Training
         best_model, best_ppl, losses_train, losses_dev = train_model_1b(
             model, train_loader, dev_loader, tokenizer,
             lr=config["lr"],
             n_epochs=1,      # breve su Colab, su Azure puoi aumentare
-            patience=patience,
+            patience=5,
             device=DEVICE
         )
         
