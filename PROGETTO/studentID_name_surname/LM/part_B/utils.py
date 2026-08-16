@@ -56,7 +56,8 @@ def get_dataloaders(tokenizer, train_path, dev_path, test_path, batch_size=8, de
     
     collate = partial(collate_fn, tokenizer=tokenizer, device=device)
     
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate, shuffle=True, num_workers=8,
+        pin_memory=True)
     dev_loader = DataLoader(dev_dataset, batch_size=batch_size*2, collate_fn=collate)
     test_loader = DataLoader(test_dataset, batch_size=batch_size*2, collate_fn=collate)
     
