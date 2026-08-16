@@ -1,4 +1,6 @@
 import torch
+import multiprocessing
+multiprocessing.set_start_method('spawn', force=True)
 import time
 import pandas as pd
 from transformers import AutoTokenizer, GPT2LMHeadModel
