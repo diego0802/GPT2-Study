@@ -86,6 +86,7 @@ def train_model_1b(model, train_loader, dev_loader, tokenizer, lr=0.001, n_epoch
         losses_dev.append(loss_dev)
         
         print(f"Epoch {epoch}: Train Loss={loss:.4f} | Dev Loss={loss_dev:.4f} | PPL={ppl_dev:.2f} | Acc={acc_dev:.4f}")
+        torch.cuda.empty_cache()
         
         if ppl_dev < best_ppl:
             best_ppl = ppl_dev

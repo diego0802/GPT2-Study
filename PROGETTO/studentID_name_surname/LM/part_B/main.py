@@ -24,7 +24,7 @@ def experiment_1b():
         "dataset/PennTreeBank/ptb.train.txt",
         "dataset/PennTreeBank/ptb.valid.txt",
         "dataset/PennTreeBank/ptb.test.txt",
-        batch_size=64,
+        batch_size=32,
         device=DEVICE
     )
     
@@ -71,15 +71,15 @@ def experiment_1b():
 
         # Epoche in base al rank
         if config["rank"] >= 16:
-            n_epochs = 14
+            n_epochs = 7
         elif config["rank"] >= 8:
-            n_epochs = 10
-        elif config["rank"] >= 4:
-            n_epochs = 8
-        elif config["rank"] >= 2:
             n_epochs = 6
-        else:
+        elif config["rank"] >= 4:
             n_epochs = 5
+        elif config["rank"] >= 2:
+            n_epochs = 4
+        else:
+            n_epochs = 3
         
         # Training
         best_model, best_ppl, losses_train, losses_dev = train_model_1b(
