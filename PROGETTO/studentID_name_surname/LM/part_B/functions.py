@@ -8,7 +8,7 @@ from tqdm import tqdm
 # ============================================================
 # TRAIN LOOP (stile 1A, ma adattato per 1B)
 # ============================================================
-def train_loop_1b(data, optimizer, model, tokenizer):
+def train_loop_1b(data, optimizer, model, tokenizer, device):
     model.train()
     loss_array = []
     number_of_tokens = []
@@ -16,6 +16,9 @@ def train_loop_1b(data, optimizer, model, tokenizer):
     pbar = tqdm(data, desc="Training:", unit="batch", total=len(data))
     
     for i, (input_ids, _, n_tokens) in enumerate(pbar):
+        # Sposta su GPU qui (se non è già stato fatto)
+        input_ids = input_ids.to(device)
+        
         optimizer.zero_grad()
         labels = input_ids.clone().detach()
         labels[labels == tokenizer.pad_token_id] = -100
@@ -74,19 +77,16 @@ def train_model_1b(model, train_loader, dev_loader, tokenizer, lr=0.001, n_epoch
     patience_counter = patience
     
     for epoch in range(n_epochs):
-        # Train
-        loss = train_loop_1b(train_loader, optimizer, model, tokenizer)
+        # Passa device a train_loop_1b
+        loss = train_loop_1b(train_loader, optimizer, model, tokenizer, device)
         losses_train.append(loss)
         sampled_epochs.append(epoch)
         
-        # Dev (valuta OGNI epoca, come nell'1A)
         ppl_dev, loss_dev, acc_dev = eval_loop_1b(dev_loader, model, tokenizer)
         losses_dev.append(loss_dev)
         
-        # Stampa come nell'1A
         print(f"Epoch {epoch}: Train Loss={loss:.4f} | Dev Loss={loss_dev:.4f} | PPL={ppl_dev:.2f} | Acc={acc_dev:.4f}")
         
-        # Early stopping
         if ppl_dev < best_ppl:
             best_ppl = ppl_dev
             best_model = copy.deepcopy(model)

@@ -31,12 +31,10 @@ def read_file(path, eos_token="<eos>"):
 def collate_fn(batch, tokenizer, device):
     tokenized = tokenizer(batch, padding=True, return_tensors="pt")
     
-    input_ids = tokenized.input_ids[:, :-1].detach().clone().to(device)
-    labels = tokenized.input_ids[:, 1:].detach().clone().to(device)
+    input_ids = tokenized.input_ids[:, :-1].detach().clone()
+    labels = tokenized.input_ids[:, 1:].detach().clone()
 
-    # count non-pad tokens
     n_tokens = torch.sum(input_ids != tokenizer.pad_token_id)
-
     return input_ids, labels, n_tokens
 
 def get_dataloaders(tokenizer, train_path, dev_path, test_path, batch_size=8, device="cpu"):
