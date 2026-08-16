@@ -92,7 +92,7 @@ def train_model_1b(model, train_loader, dev_loader, tokenizer, lr=0.001, n_epoch
     patience_counter = patience
     
     for epoch in range(n_epochs):
-        loss = train_loop_1b(train_loader, optimizer, model, tokenizer)
+        loss = train_loop(train_loader, optimizer, model, tokenizer)
         losses_train.append(loss)
         sampled_epochs.append(epoch)
         
