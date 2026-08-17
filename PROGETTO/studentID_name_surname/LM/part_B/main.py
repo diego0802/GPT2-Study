@@ -1,4 +1,6 @@
 import torch
+import multiprocessing
+multiprocessing.set_start_method('spawn', force=True)
 import time
 import pandas as pd
 from transformers import AutoTokenizer, GPT2LMHeadModel
@@ -69,26 +71,34 @@ def experiment_1b():
 
         # Epoche in base al rank
         if config["rank"] >= 16:
-            n_epochs = 30
-            patience = 3
+            n_epochs = 7
         elif config["rank"] >= 8:
-            n_epochs = 25
+            n_epochs = 6
+        elif config["rank"] >= 4:
+            n_epochs = 5
+        elif config["rank"] >= 2:
+            n_epochs = 4
+        else:
+            n_epochs = 3
+
+        if config["rank"] == 1:
+            patience = 3
+        elif config["rank"] == 2:
             patience = 4
         else:
-            n_epochs = 20
-            patience = 3
+            patience = 5
         
         # Training
         best_model, best_ppl, losses_train, losses_dev = train_model_1b(
             model, train_loader, dev_loader, tokenizer,
             lr=config["lr"],
-            n_epochs=1,      # breve su Colab, su Azure puoi aumentare
+            n_epochs=n_epochs,      # breve su Colab, su Azure puoi aumentare
             patience=patience,
             device=DEVICE
         )
         
         # Test
-        test_ppl, test_loss, test_acc = eval_loop_1b(test_loader, best_model, tokenizer)
+        test_ppl, test_loss, test_acc = eval_loop_1b(test_loader, best_model, tokenizer, DEVICE)
         elapsed = time.time() - start_time
         
         # Salva risultati
@@ -113,24 +123,23 @@ def experiment_1b():
                     final_acc=test_acc
                 )
                 
-        torch.save(best_model.state_dict(), f"best_model_d{config['d_model']}_l{config['num_layers']}.pt")
-        print(f"💾 Modello salvato: best_model_d{config['d_model']}_l{config['num_layers']}.pt")
+        torch.save(best_model.state_dict(), f"best_model_rank{config['rank']}_alpha{config['alpha']}.pt")
+        print(f"💾 Modello salvato: best_model_rank{config['rank']}_alpha{config['alpha']}.pt")
             
-        # Tabella finale
         print("\n" + "="*80)
-        print("📊 TABELLA FINALE DEI RISULTATI")
+        print("📊 TABELLA FINALE 1B")
         print("="*80)
-        print(f"{'d_model':<8} {'layers':<6} {'dropout':<8} {'tying':<6} {'Val PPL':<10} {'Test PPL':<10} {'Test Acc':<10} {'Time (s)':<10}")
+        print(f"{'rank':<6} {'alpha':<6} {'lr':<12} {'Val PPL':<10} {'Test PPL':<10} {'Test Acc':<10} {'Time (s)':<10}")
         print("-"*80)
         for r in results:
-                c = r["config"]
-                print(f"{c['d_model']:<8} {c['num_layers']:<6} {c['dropout']:<8} {str(c['weight_tying']):<6} "
-                      f"{r['best_val_ppl']:<10.2f} {r['test_ppl']:<10.2f} {r['test_acc']:<10.4f} {r['time']:<10.1f}")
+            c = r["config"]
+            print(f"{c['rank']:<6} {c['alpha']:<6} {c['lr']:<12} "
+                f"{r['best_val_ppl']:<10.2f} {r['test_ppl']:<10.2f} {r['test_acc']:<10.4f} {r['time']:<10.1f}")
         print("="*80)
-        
+
         df_final = pd.DataFrame(results)
-        df_final.to_csv("final_results.csv", index=False)
-        print("✅ Tabella finale salvata in 'final_results.csv'")
+        df_final.to_csv("final_results_1B.csv", index=False)
+        print("✅ Tabella finale salvata in 'final_results_1B.csv'")
 
 if __name__ == "__main__":
     experiment_1b()

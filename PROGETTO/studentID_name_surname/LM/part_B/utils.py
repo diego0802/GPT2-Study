@@ -31,12 +31,10 @@ def read_file(path, eos_token="<eos>"):
 def collate_fn(batch, tokenizer, device):
     tokenized = tokenizer(batch, padding=True, return_tensors="pt")
     
-    input_ids = tokenized.input_ids[:, :-1].detach().clone().to(device)
-    labels = tokenized.input_ids[:, 1:].detach().clone().to(device)
+    input_ids = tokenized.input_ids[:, :-1].detach().clone()
+    labels = tokenized.input_ids[:, 1:].detach().clone()
 
-    # count non-pad tokens
     n_tokens = torch.sum(input_ids != tokenizer.pad_token_id)
-
     return input_ids, labels, n_tokens
 
 def get_dataloaders(tokenizer, train_path, dev_path, test_path, batch_size=8, device="cpu"):
@@ -56,7 +54,8 @@ def get_dataloaders(tokenizer, train_path, dev_path, test_path, batch_size=8, de
     
     collate = partial(collate_fn, tokenizer=tokenizer, device=device)
     
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate, shuffle=True, num_workers=8,
+        pin_memory=True)
     dev_loader = DataLoader(dev_dataset, batch_size=batch_size*2, collate_fn=collate)
     test_loader = DataLoader(test_dataset, batch_size=batch_size*2, collate_fn=collate)
     
@@ -88,7 +87,8 @@ def save_report(config, losses_train, losses_dev, sampled_epochs, final_ppl, fin
     })
     
     if save_csv:
-        csv_name = f"report_d{config['d_model']}_l{config['num_layers']}_d{config['dropout']}.csv"
+        # Usa rank e alpha invece di d_model e layers
+        csv_name = f"report_1B_rank{config['rank']}_alpha{config['alpha']}.csv"
         df.to_csv(csv_name, index=False)
         print(f"✅ CSV salvato: {csv_name}")
     
@@ -96,12 +96,13 @@ def save_report(config, losses_train, losses_dev, sampled_epochs, final_ppl, fin
         plt.figure(figsize=(8, 5))
         plt.plot(sampled_epochs, losses_train, label='Train Loss')
         plt.plot(sampled_epochs, losses_dev, label='Dev Loss')
-        plt.title(f"Training curves - d_model={config['d_model']}, layers={config['num_layers']}")
+        plt.title(f"1B LoRA - rank={config['rank']}, alpha={config['alpha']}, lr={config['lr']}")
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.legend()
         plt.grid(True)
-        plot_name = f"plot_d{config['d_model']}_l{config['num_layers']}_d{config['dropout']}.png"
+        # Usa rank e alpha nel nome del plot
+        plot_name = f"plot_1B_rank{config['rank']}_alpha{config['alpha']}.png"
         plt.savefig(plot_name)
         plt.close()
         print(f"✅ Grafico salvato: {plot_name}")
