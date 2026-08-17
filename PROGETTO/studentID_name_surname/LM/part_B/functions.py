@@ -16,7 +16,11 @@ def train_loop_1b(data, optimizer, model, tokenizer, device):
     pbar = tqdm(data, desc="Training:", unit="batch", total=len(data))
     
     for i, (input_ids, _, n_tokens) in enumerate(pbar):
+<<<<<<< HEAD
         # Sposta su GPU (anche se il DataLoader dovrebbe già farlo)
+=======
+        # Sposta su GPU qui (se non è già stato fatto)
+>>>>>>> 7bf61c32854d75a81d88b93364c1123227c6e3c2
         input_ids = input_ids.to(device)
         
         optimizer.zero_grad()
@@ -36,9 +40,15 @@ def train_loop_1b(data, optimizer, model, tokenizer, device):
 
 
 # ============================================================
+<<<<<<< HEAD
 # EVAL LOOP (con accuracy, come in 1A, ora riceve device)
 # ============================================================
 def eval_loop_1b(data, model, tokenizer, device):
+=======
+# EVAL LOOP (con accuracy, come in 1A)
+# ============================================================
+def eval_loop_1b(data, model, tokenizer):
+>>>>>>> 7bf61c32854d75a81d88b93364c1123227c6e3c2
     model.eval()
     loss_array = []
     number_of_tokens = []
@@ -80,13 +90,21 @@ def train_model_1b(model, train_loader, dev_loader, tokenizer, lr=0.001, n_epoch
     patience_counter = patience
     
     for epoch in range(n_epochs):
+<<<<<<< HEAD
         # Train (passa device)
+=======
+        # Passa device a train_loop_1b
+>>>>>>> 7bf61c32854d75a81d88b93364c1123227c6e3c2
         loss = train_loop_1b(train_loader, optimizer, model, tokenizer, device)
         losses_train.append(loss)
         sampled_epochs.append(epoch)
         
+<<<<<<< HEAD
         # Dev (passa device)
         ppl_dev, loss_dev, acc_dev = eval_loop_1b(dev_loader, model, tokenizer, device)
+=======
+        ppl_dev, loss_dev, acc_dev = eval_loop_1b(dev_loader, model, tokenizer)
+>>>>>>> 7bf61c32854d75a81d88b93364c1123227c6e3c2
         losses_dev.append(loss_dev)
         
         print(f"Epoch {epoch}: Train Loss={loss:.4f} | Dev Loss={loss_dev:.4f} | PPL={ppl_dev:.2f} | Acc={acc_dev:.4f}")
