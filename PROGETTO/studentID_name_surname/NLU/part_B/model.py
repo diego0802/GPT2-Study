@@ -149,12 +149,7 @@ class GPT2ForIntentSlots(nn.Module):
         self.hidden_size = self.gpt2.config.hidden_size
         
         self.slot_classifier = nn.Linear(self.hidden_size, n_slots)
-        self.intent_classifier = nn.Sequential(
-            nn.Linear(self.hidden_size, self.hidden_size // 2),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(self.hidden_size // 2, n_intents)
-        )
+        self.intent_classifier = nn.Linear(self.hidden_size, n_intents)
         self.dropout = nn.Dropout(dropout)
         
         # Inizializza i nuovi layer
@@ -188,6 +183,7 @@ class BertForIntentSlots(nn.Module):
         
         self.slot_classifier = nn.Linear(self.hidden_size, n_slots)
         self.intent_classifier = nn.Linear(self.hidden_size, n_intents)
+        
         self.dropout = nn.Dropout(dropout)
         
         # Inizializza i nuovi layer
