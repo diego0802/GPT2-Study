@@ -304,22 +304,20 @@ def experiment_2b():
             num_training_steps=num_training_steps
         )
         
-        # --- Calcola class weights per bilanciare le classi slot ---
         print("\n=== Slot Class Weights ===")
-        # CORREZIONE per class weights slots
         all_slots = []
         for example in train_raw:
-            slots = example['slots'].split()
-            for slot in slots:
+            for slot in example['slots'].split():
                 if slot in slot2id:
                     all_slots.append(slot)
 
-        unique_slots = sorted(slot2id.keys(), key=lambda x: slot2id[x])  # Usa set per unicità
-        class_weights = compute_class_weight('balanced', classes=unique_slots, y=all_slots)
+        # ✅ Usa SOLO gli slot presenti nel training set
+        present_slots = list(set(all_slots))
+        class_weights = compute_class_weight('balanced', classes=present_slots, y=all_slots)
 
-        # Crea tensore con lunghezza corretta
+        # Crea tensore per TUTTI gli slot (quelli non presenti restano 1)
         class_weights_tensor = torch.ones(len(slot2id), dtype=torch.float32).to(DEVICE)
-        for slot, weight in zip(unique_slots, class_weights):
+        for slot, weight in zip(present_slots, class_weights):
             slot_id = slot2id[slot]
             class_weights_tensor[slot_id] = weight
 
@@ -327,28 +325,24 @@ def experiment_2b():
         class_weights_tensor = torch.clamp(class_weights_tensor, max=5.0)
 
         print(f"Slot Class weights shape: {class_weights_tensor.shape}")
-        print(f"Slot Weight for 'O': {class_weights_tensor[slot2id.get('O', 0)].item():.4f}")
-        print(f"Slot Weight for 'B-fromloc.city_name': {class_weights_tensor[slot2id.get('B-fromloc.city_name', 0)].item():.4f}")
 
+        # --- Calcola class weights per gli intents ---
         all_intents = []
         for example in train_raw:
-            intents = example['intent'].split()
-            for intent in intents:
+            for intent in example['intent'].split():
                 if intent in intent2id:
                     all_intents.append(intent)
 
-        unique_intents = sorted(intent2id.keys(), key=lambda x: intent2id[x])
-        class_weights_intents = compute_class_weight('balanced', classes=unique_intents, y=all_intents)
+        # ✅ Usa SOLO gli intent presenti nel training set
+        present_intents = list(set(all_intents))
+        class_weights_intents = compute_class_weight('balanced', classes=present_intents, y=all_intents)
 
-        # Crea tensore per intents
+        # Crea tensore per TUTTI gli intent
         class_weights_tensor_intents = torch.ones(len(intent2id), dtype=torch.float32).to(DEVICE)
-
-        # ✅ ASSEGNA i pesi correttamente
-        for intent, weight in zip(unique_intents, class_weights_intents):
+        for intent, weight in zip(present_intents, class_weights_intents):
             intent_id = intent2id[intent]
             class_weights_tensor_intents[intent_id] = weight
 
-        # Normalizza e clamp
         class_weights_tensor_intents = class_weights_tensor_intents / class_weights_tensor_intents.mean()
         class_weights_tensor_intents = torch.clamp(class_weights_tensor_intents, max=5.0)
 
