@@ -433,11 +433,6 @@ def experiment_2b():
         )
         
         # Calcola metriche aggiuntive per slot (escludendo O)
-        non_o_f1s = [v['f'] for k, v in results_test.items() 
-                    if k != 'O' and k != 'total' and isinstance(v, dict)]
-        non_o_avg_f1 = np.mean(non_o_f1s) if non_o_f1s else 0
-        
-        slot_o_f1_test = results_test.get('O', {}).get('f', 0)
         
         elapsed = time.time() - start_time
         avg_epoch_time = np.mean(epoch_times) if epoch_times else 0
@@ -454,8 +449,6 @@ def experiment_2b():
             "slot_f1": slot_f1,
             "slot_p": slot_p,
             "slot_r": slot_r,
-            "slot_o_f1": slot_o_f1_test,
-            "slot_non_o_avg_f1": non_o_avg_f1,
             "intent_acc": intent_acc,
             "intent_f1": intent_f1,
             "best_epoch": best_epoch,
