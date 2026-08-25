@@ -2,70 +2,155 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from conll import evaluate
+from conll import conlleval, evaluate
 from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score
+PAD_TOKEN = 0
 
-def train_loop(data, optimizer, criterion_slots, criterion_intents, model):
+# In functions.py:
+
+def train_loop_hf(data, optimizer, criterion_slots, criterion_intents, model):
     model.train()
     loss_array = []
+    
     for batch in data:
         optimizer.zero_grad()
+        
         slot_logits, intent_logits = model(batch['input_ids'], batch['attention_mask'])
         
-        loss_slot = criterion_slots(slot_logits.permute(0, 2, 1), batch['slot_ids'])
-        loss_intent = criterion_intents(intent_logits, batch['intent_ids'])
-        loss = loss_slot + loss_intent
+        loss_slot = criterion_slots(slot_logits.transpose(1, 2), batch['slot_ids'])
+        loss_intent = criterion_intents(intent_logits, batch['intents'])
+        
+        # Bilancia le loss
+        loss = 0.5 * loss_slot + 0.5 * loss_intent
+        
         loss_array.append(loss.item())
         loss.backward()
+        
+        # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        
         optimizer.step()
+
     return loss_array
 
-def eval_loop(data, criterion_slots, criterion_intents, model, slot2id, id2slot, id2intent):
+# In functions.py, modifica eval_loop_hf per aggiungere debug:
+
+def eval_loop_hf(data, criterion_slots, criterion_intents, model, tokenizer, 
+                 slot2id, id2slot, id2intent, model_type='gpt2'):
     model.eval()
     loss_array = []
-    ref_intents, hyp_intents = [], []
-    ref_slots, hyp_slots = [], []
+    
+    ref_intents = []
+    hyp_intents = []
+    ref_slots = []
+    hyp_slots = []
     
     with torch.no_grad():
-        for batch in data:
+        for batch_idx, batch in enumerate(data):
             slot_logits, intent_logits = model(batch['input_ids'], batch['attention_mask'])
             
-            loss_slot = criterion_slots(slot_logits.permute(0, 2, 1), batch['slot_ids'])
-            loss_intent = criterion_intents(intent_logits, batch['intent_ids'])
-            loss_array.append((loss_slot + loss_intent).item())
+            loss_slot = criterion_slots(slot_logits.transpose(1, 2), batch['slot_ids'])
+            loss_intent = criterion_intents(intent_logits, batch['intents'])
+            
+            loss = 0.5 * loss_slot + 0.5 * loss_intent
+            loss_array.append(loss.item())
             
             # Intent
             out_intents = [id2intent[x] for x in torch.argmax(intent_logits, dim=1).tolist()]
-            ref_intents.extend([id2intent[x] for x in batch['intent_ids'].tolist()])
+            gt_intents = [id2intent[x] for x in batch['intents'].tolist()]
+            ref_intents.extend(gt_intents)
             hyp_intents.extend(out_intents)
             
-            # Slots – ALLINEAMENTO CORRETTO
-            output_slots = torch.argmax(slot_logits, dim=1)  # (B, L)
-            for i, seq in enumerate(output_slots):
-                # Prendi solo i token validi (non padding)
-                mask = batch['attention_mask'][i]
-                length = mask.sum().item()
+            # Slot - usa word_ids per allineare correttamente
+            output_slots = torch.argmax(slot_logits, dim=2)
+            
+            for i in range(len(batch['input_ids'])):
+                # Recupera le parole originali
+                words = batch['original_words'][i]
                 
-                # Input IDs e slot predetti (solo validi)
-                utt_ids = batch['input_ids'][i][:length].tolist()
-                pred_ids = seq[:length].tolist()
+                # Recupera i word_ids per questo esempio
+                word_ids_i = batch['word_ids'][i]
                 
-                # Slot ground truth (solo validi)
-                gt_ids = batch['slot_ids'][i][:length].tolist()
+                # Costruisci mappe parola -> slot
+                pred_slots_by_word = {}
+                gt_slots_by_word = {}
                 
-                # Ricostruisci utterance (per conll)
-                # Nota: per GPT2/BERT i token sono subword – per semplicità usiamo i token come "parole"
-                utterance = [str(id) for id in utt_ids]  # o puoi decodificare con tokenizer.decode()
+                for j, wid in enumerate(word_ids_i):
+                    if wid is None:
+                        continue  # Token speciali (CLS, SEP, EOS, PAD)
+                    
+                    # Predizione per questo token
+                    pred_id = output_slots[i][j].item()
+                    pred_slot = id2slot.get(pred_id, 'O')
+                    
+                    # GT per questo token (solo primo subtoken ha label)
+                    gt_id = batch['slot_ids'][i][j].item()
+                    if gt_id != -100:
+                        gt_slot = id2slot.get(gt_id, 'O')
+                        
+                        # Salva per la parola corrispondente
+                        if wid not in pred_slots_by_word:
+                            pred_slots_by_word[wid] = pred_slot
+                            gt_slots_by_word[wid] = gt_slot
                 
-                # Ricostruisci slot predetti e ground truth
-                ref_slots.append([(utterance[j], id2slot[gt_ids[j]]) for j in range(length)])
-                hyp_slots.append([(utterance[j], id2slot[pred_ids[j]]) for j in range(length)])
+                # Costruisci le sequenze allineate alle parole
+                pred_slots_seq = [pred_slots_by_word.get(w, 'O') for w in range(len(words))]
+                gt_slots_seq = [gt_slots_by_word.get(w, 'O') for w in range(len(words))]
+                
+                # Aggiungi alle liste se ci sono parole
+                if len(words) > 0:
+                    ref_slots.append(list(zip(words, gt_slots_seq)))
+                    hyp_slots.append(list(zip(words, pred_slots_seq)))
     
+    # Calcola metriche
+    if model_type == 'bert':
+        ref_slots_conll = convert_to_conll_format(ref_slots)
+        hyp_slots_conll = convert_to_conll_format(hyp_slots)
+    else:
+        ref_slots_conll = ref_slots
+        hyp_slots_conll = hyp_slots
+
     try:
-        results = evaluate(ref_slots, hyp_slots)
-    except Exception as ex:
-        print("Warning:", ex)
-        results = {"total": {"f": 0}}
+        results = evaluate(ref_slots_conll, hyp_slots_conll)
+        if results is None:
+            print("WARNING: evaluate() returned None!")
+            results = {"total": {"f": 0, "p": 0, "r": 0}}
+    except Exception as e:
+        print("Warning in eval_loop:", e)
+        results = {"total": {"f": 0, "p": 0, "r": 0}}
+    
+    # Usa accuracy_score per intent
+    intent_acc = accuracy_score(ref_intents, hyp_intents)
     
     report_intent = classification_report(ref_intents, hyp_intents, zero_division=False, output_dict=True)
-    return results, report_intent, loss_array
+    intent_f1 = report_intent.get('macro avg', {}).get('f1-score', 0)
+    
+    # Estrai metriche slot (con controllo None)
+    if results is not None:
+        slot_f1 = results.get('total', {}).get('f', 0)
+        slot_p = results.get('total', {}).get('p', 0)
+        slot_r = results.get('total', {}).get('r', 0)
+    else:
+        slot_f1 = slot_p = slot_r = 0
+    
+    return results, report_intent, loss_array, intent_acc, intent_f1, slot_f1, slot_p, slot_r, np.mean(loss_array)
+
+# In functions.py, modifica convert_to_conll_format:
+
+def convert_to_conll_format(slots_seq):
+    """Converte le etichette in formato che conll.py possa gestire"""
+    converted = []
+    for seq in slots_seq:
+        converted_seq = []
+        for word, slot in seq:
+            if slot == 'O':
+                converted_seq.append((word, 'O-O'))
+            elif slot.startswith('B-') or slot.startswith('I-'):
+                converted_seq.append((word, slot))
+            else:
+                # Etichette senza prefisso (come 'today_relative', 'state_code')
+                # Convertile in formato IOB
+                converted_seq.append((word, f"B-{slot}"))
+        converted.append(converted_seq)
+    return converted
