@@ -47,13 +47,13 @@ def experiment_2b():
         "model_type": "gpt2",
         "model_size": "base",
         "hf_name": "openai-community/gpt2",
-        "lr": 3e-5,
+        "lr": 1e-5,
         "batch_size": 32,
-        "dropout": 0.1,
-        "weight_decay": 0.01,
+        "dropout": 0.25,
+        "weight_decay": 0.05,
         "n_epochs": 60,
         "patience": 10,
-        "warmup_ratio": 0.1,
+        "warmup_ratio": 0.15,
     },
     
     # ===== GPT-2 BASE - Dropout alto =====
@@ -61,13 +61,13 @@ def experiment_2b():
         "model_type": "gpt2",
         "model_size": "base",
         "hf_name": "openai-community/gpt2",
-        "lr": 3e-5,
+        "lr": 8e-6,
         "batch_size": 32,
-        "dropout": 0.2,
-        "weight_decay": 0.01,
+        "dropout": 0.3,
+        "weight_decay": 0.05,
         "n_epochs": 60,
         "patience": 10,
-        "warmup_ratio": 0.1,
+        "warmup_ratio": 0.2,
     },
     
     # ===== GPT-2 BASE - LR basso =====
@@ -89,8 +89,8 @@ def experiment_2b():
         "model_type": "gpt2",
         "model_size": "medium",
         "hf_name": "openai-community/gpt2-medium",
-        "lr": 2e-5,
-        "batch_size": 16,
+        "lr": 8e-6,
+        "batch_size": 24,
         "dropout": 0.1,
         "weight_decay": 0.01,
         "n_epochs": 50,
@@ -210,6 +210,7 @@ def experiment_2b():
         "warmup_ratio": 0.1,
     },
 ]
+    all_results = []
     for config in configs:
         print(f"\n{'='*60}")
         print(f"Testing config: {config['model_type']}-{config['model_size']}")
@@ -219,9 +220,10 @@ def experiment_2b():
         
         # --- Tokenizer e Modello ---
         if config['model_type'] == 'gpt2':
-            tokenizer = AutoTokenizer.from_pretrained(config['hf_name'])
+            tokenizer = AutoTokenizer.from_pretrained(config['hf_name'], add_prefix_space=True)
             tokenizer.pad_token = tokenizer.eos_token
-            tokenizer.padding_side = "right"
+            tokenizer.padding_side = "left"
+            pad_token_id = tokenizer.eos_token_id
             model = GPT2ForIntentSlots(
                 model_name=config['hf_name'],
                 n_intents=len(intent2id),
@@ -230,6 +232,7 @@ def experiment_2b():
             )
         elif config['model_type'] == 'bert':
             tokenizer = AutoTokenizer.from_pretrained(config['hf_name'])
+            pad_token_id = tokenizer.pad_token_id
             model = BertForIntentSlots(
                 model_name=config['hf_name'],
                 n_intents=len(intent2id),
@@ -272,17 +275,17 @@ def experiment_2b():
             train_dataset, 
             batch_size=config['batch_size'], 
             shuffle=True, 
-            collate_fn=collate_fn_hf
+            collate_fn=lambda b: collate_fn_hf(b, pad_token_id=pad_token_id, model_type=config['model_type'])
         )
         dev_loader = DataLoader(
             dev_dataset, 
             batch_size=config['batch_size'], 
-            collate_fn=collate_fn_hf
+            collate_fn=lambda b: collate_fn_hf(b, pad_token_id=pad_token_id, model_type=config['model_type'])
         )
         test_loader = DataLoader(
             test_dataset, 
             batch_size=config['batch_size'], 
-            collate_fn=collate_fn_hf
+            collate_fn=lambda b: collate_fn_hf(b, pad_token_id=pad_token_id, model_type=config['model_type'])
         )
         
         # --- Training ---
@@ -303,27 +306,23 @@ def experiment_2b():
         
         # --- Calcola class weights per bilanciare le classi slot ---
         print("\n=== Slot Class Weights ===")
+        # CORREZIONE per class weights slots
         all_slots = []
         for example in train_raw:
             slots = example['slots'].split()
             for slot in slots:
                 if slot in slot2id:
                     all_slots.append(slot)
-        
-        unique_slots = np.unique(all_slots)
+
+        unique_slots = sorted(slot2id.keys(), key=lambda x: slot2id[x])  # Usa set per unicità
         class_weights = compute_class_weight('balanced', classes=unique_slots, y=all_slots)
-        class_weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to(DEVICE)
-        
-        # ✅ CORREZIONE: assicurati che la lunghezza corrisponda al numero di classi
-        num_slots = len(slot2id)
-        if class_weights_tensor.shape[0] != num_slots:
-            print(f"Length is different: Corrected from {class_weights_tensor.shape[0]} to {num_slots}")
-            corrected_weights = torch.ones(num_slots, dtype=torch.float32).to(DEVICE)
-            for i, slot in enumerate(unique_slots):
-                slot_id = slot2id.get(slot)
-                if slot_id is not None:
-                    corrected_weights[slot_id] = class_weights[i]
-            class_weights_tensor = corrected_weights
+
+        # Crea tensore con lunghezza corretta
+        class_weights_tensor = torch.ones(len(slot2id), dtype=torch.float32).to(DEVICE)
+        for slot, weight in zip(unique_slots, class_weights):
+            slot_id = slot2id[slot]
+            class_weights_tensor[slot_id] = weight
+
         class_weights_tensor = class_weights_tensor / class_weights_tensor.mean()
         class_weights_tensor = torch.clamp(class_weights_tensor, max=5.0)
 
@@ -333,27 +332,26 @@ def experiment_2b():
 
         all_intents = []
         for example in train_raw:
-                intents = example['intent'].split()
-                for intent in intents:
-                    if intent in intent2id:
-                        all_intents.append(intent)
-        unique_intents = np.unique(all_intents)
+            intents = example['intent'].split()
+            for intent in intents:
+                if intent in intent2id:
+                    all_intents.append(intent)
+
+        unique_intents = sorted(intent2id.keys(), key=lambda x: intent2id[x])
         class_weights_intents = compute_class_weight('balanced', classes=unique_intents, y=all_intents)
-        class_weights_tensor_intents = torch.tensor(class_weights_intents, dtype=torch.float32).to(DEVICE)
+
+        # Crea tensore per intents
+        class_weights_tensor_intents = torch.ones(len(intent2id), dtype=torch.float32).to(DEVICE)
+
+        # ✅ ASSEGNA i pesi correttamente
+        for intent, weight in zip(unique_intents, class_weights_intents):
+            intent_id = intent2id[intent]
+            class_weights_tensor_intents[intent_id] = weight
+
+        # Normalizza e clamp
         class_weights_tensor_intents = class_weights_tensor_intents / class_weights_tensor_intents.mean()
         class_weights_tensor_intents = torch.clamp(class_weights_tensor_intents, max=5.0)
-            
-            # ✅ CORREZIONE: assicurati che la lunghezza corrisponda al numero di classi
-        num_intents = len(intent2id)
-        if class_weights_tensor_intents.shape[0] != num_intents:
-                print(f"Length is different: Corrected from {class_weights_tensor_intents.shape[0]} to {num_intents}")
-                corrected_weights = torch.ones(num_intents, dtype=torch.float32).to(DEVICE)
-                for i, intent in enumerate(unique_intents):
-                    intent_id = intent2id.get(intent)
-                    if intent_id is not None:
-                        corrected_weights[intent_id] = class_weights_intents[i]
-                class_weights_tensor_intents = corrected_weights
-        
+
         print(f"Intents Class weights shape: {class_weights_tensor_intents.shape}")
         
         # --- Crea la loss con class weights ---
@@ -458,6 +456,8 @@ def experiment_2b():
             "best_train_loss": min(losses_train) if losses_train else 0,
             "best_dev_loss": min(losses_dev) if losses_dev else 0
         }
+        all_results.append(results)
+        pd.DataFrame(all_results).to_csv("final_results_2B_all_configs.csv", index=False)
         
         print(f"\n✅ Test Results: Slot F1={slot_f1:.3f} | Intent Acc={intent_acc:.3f} | Time: {elapsed:.1f}s")
         
@@ -479,30 +479,38 @@ def experiment_2b():
         
     # --- Tabella finale ---
     print("\n" + "="*160)
-    print("Final Table 2B")
+    print("Final Table 2B - ALL CONFIGURATIONS")
     print("="*160)
     print(f"{'Model':<14} {'LR':<10} {'Batch':<8} {'Dropout':<10} "
-          f"{'Slot F1':<10} {'Slot P':<10} {'Slot R':<10} "
-          f" {'Intent Acc':<12} {'Intent F1':<10} "
-          f"{'Best Ep':<8} {'Params (M)':<12} {'Time (s)':<10}")
+        f"{'Slot F1':<10} {'Slot P':<10} {'Slot R':<10} "
+        f"{'Intent Acc':<12} {'Intent F1':<10} "
+        f"{'Best Ep':<8} {'Params (M)':<12} {'Time (s)':<10}")
     print("-"*160)
-    params_m = results['params_total'] / 1_000_000
-    print(f"{results['model']:<14} {results['lr']:<10.0e} {results['batch_size']:<8} {results['dropout']:<10} "
-          f"{results['slot_f1']:<10.3f} {results['slot_p']:<10.3f} {results['slot_r']:<10.3f} "
-          f"{results['intent_acc']:<12.3f} {results['intent_f1']:<10.3f} "
-          f"{results['best_epoch']:<8} {params_m:<12.2f} {results['time_total']:<10.1f}")
+
+    # Stampa TUTTE le configurazioni dalla lista
+    for result in all_results:
+        params_m = result['params_total'] / 1_000_000
+        print(f"{result['model']:<14} {result['lr']:<10.0e} {result['batch_size']:<8} {result['dropout']:<10} "
+            f"{result['slot_f1']:<10.3f} {result['slot_p']:<10.3f} {result['slot_r']:<10.3f} "
+            f"{result['intent_acc']:<12.3f} {result['intent_f1']:<10.3f} "
+            f"{result['best_epoch']:<8} {params_m:<12.2f} {result['time_total']:<10.1f}")
+
     print("="*160)
-    
-    # Salva CSV
-    df_csv = pd.DataFrame([results])
+
+    # Trova il miglior modello per Slot F1
+    best_result = max(all_results, key=lambda x: x['slot_f1'])
+
+    # Salva CSV con TUTTI i risultati
+    df_csv = pd.DataFrame(all_results)
     df_csv.to_csv("final_results_2B_all_configs.csv", index=False)
-    
-    print("\nBest Model (Slot F1):")
-    print(f"  Model={results['model']}, LR={results['lr']:.0e}, Batch={results['batch_size']}, Dropout={results['dropout']}")
-    print(f"  Slot F1={results['slot_f1']:.3f} | Slot P={results['slot_p']:.3f} | Slot R={results['slot_r']:.3f}")
-    print(f"  Intent Acc={results['intent_acc']:.3f} | Intent F1={results['intent_f1']:.3f}")
-    print(f"  Parameters: {results['params_total']/1_000_000:.2f}M")
-    print(f"  Time: {results['time_total']:.1f}s")
+    print(f"\n✅ CSV saved: final_results_2B_all_configs.csv ({len(all_results)} configurations)")
+
+    print("\n🏆 Best Model (Slot F1):")
+    print(f"  Model={best_result['model']}, LR={best_result['lr']:.0e}, Batch={best_result['batch_size']}, Dropout={best_result['dropout']}")
+    print(f"  Slot F1={best_result['slot_f1']:.3f} | Slot P={best_result['slot_p']:.3f} | Slot R={best_result['slot_r']:.3f}")
+    print(f"  Intent Acc={best_result['intent_acc']:.3f} | Intent F1={best_result['intent_f1']:.3f}")
+    print(f"  Parameters: {best_result['params_total']/1_000_000:.2f}M")
+    print(f"  Time: {best_result['time_total']:.1f}s")
 
 if __name__ == "__main__":
     experiment_2b()

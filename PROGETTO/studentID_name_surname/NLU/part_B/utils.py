@@ -79,11 +79,7 @@ class Lang(): #Constructor
         for elem in elements:
             vocab[elem] = len(vocab)
         if cls:
-            # ✅ CORREZIONE: non sovrascrivere 'pad'
-            if PAD_TOKEN not in vocab.values():
-                vocab['cls'] = PAD_TOKEN
-            else:
-                vocab['cls'] = len(vocab)  # Usa un ID univoco
+            vocab['cls'] = len(vocab)  # <-- ID univoco
         return vocab
 
 class ATISDataset(Dataset):
@@ -103,41 +99,36 @@ class ATISDataset(Dataset):
         slots = item['slots'].split()
         intent = item['intent']
 
-        # Tokenizza con Hugging Face
+        # Tokenizza UNA SOLA VOLTA con add_special_tokens=True per tutti
         encoding = self.tokenizer(
             words,
             is_split_into_words=True,
             padding=False,
             truncation=True,
             max_length=512,
-            return_tensors=None
+            return_tensors=None,
+            add_special_tokens=True  # <-- Sempre True!
         )
         
-        # CORRETTO: ALLINEAMENTO con word_ids()
-        slot_ids = []
+        # Estrai input_ids e attention_mask
+        input_ids = encoding['input_ids']
+        attention_mask = encoding['attention_mask']
         word_ids = encoding.word_ids()
+        
+        # Crea slot_ids allineati con word_ids
+        slot_ids = []
         previous_word_idx = None
         
         for word_idx in word_ids:
             if word_idx is None:
-                slot_ids.append(-100)  # Padding o token speciali
+                slot_ids.append(-100)  # Token speciali (CLS, SEP, EOS, PAD)
             elif word_idx != previous_word_idx:
                 # Primo subtoken - assegna l'etichetta della parola corrispondente
-                slot_ids.append(self.slot2id[slots[word_idx]])
+                slot_ids.append(self.slot2id.get(slots[word_idx], self.slot2id.get('O', 0)))
                 previous_word_idx = word_idx
             else:
-                # Subtoken successivi - assegna la STESSA etichetta (non -100!)
+                # Subtoken successivi - ignora (-100)
                 slot_ids.append(-100)
-        
-        # Per GPT2, aggiungi l'EOS token alla fine
-        if self.model_type == 'gpt2':
-            input_ids = encoding['input_ids'] + [self.tokenizer.eos_token_id]
-            attention_mask = encoding['attention_mask'] + [1]
-            slot_ids = slot_ids + [-100]  # Ignora l'EOS token per slots
-        else:
-            # Per BERT, il CLS e SEP sono già aggiunti dal tokenizer
-            input_ids = encoding['input_ids']
-            attention_mask = encoding['attention_mask']
 
         return {
             'input_ids': input_ids,
@@ -198,7 +189,7 @@ class IntentsAndSlots(data.Dataset):
         return res
 
 # --- Collate function ---
-def collate_fn_hf(batch):
+def collate_fn_hf(batch, pad_token_id=0, model_type='gpt2'):
     input_ids = [item['input_ids'] for item in batch]
     attention_mask = [item['attention_mask'] for item in batch]
     slot_ids = [item['slot_ids'] for item in batch]
@@ -208,15 +199,29 @@ def collate_fn_hf(batch):
     
     max_len = max(len(ids) for ids in input_ids)
     
-    padded_input_ids = torch.LongTensor(len(batch), max_len).fill_(0)
+    # Usa il pad_token_id passato come parametro
+    if model_type == 'gpt2':
+        padding_side = "left"
+    else:
+        padding_side = "right"
+    
+    # Crea i tensori padded
+    padded_input_ids = torch.LongTensor(len(batch), max_len).fill_(pad_token_id)
     padded_attention_mask = torch.LongTensor(len(batch), max_len).fill_(0)
     padded_slot_ids = torch.LongTensor(len(batch), max_len).fill_(-100)
     
     for i in range(len(batch)):
         length = len(input_ids[i])
-        padded_input_ids[i, :length] = torch.tensor(input_ids[i])
-        padded_attention_mask[i, :length] = torch.tensor(attention_mask[i])
-        padded_slot_ids[i, :length] = torch.tensor(slot_ids[i])
+        
+        if padding_side == "left":
+            offset = max_len - length
+            padded_input_ids[i, offset:] = torch.tensor(input_ids[i])
+            padded_attention_mask[i, offset:] = torch.tensor(attention_mask[i])
+            padded_slot_ids[i, offset:] = torch.tensor(slot_ids[i])
+        else:
+            padded_input_ids[i, :length] = torch.tensor(input_ids[i])
+            padded_attention_mask[i, :length] = torch.tensor(attention_mask[i])
+            padded_slot_ids[i, :length] = torch.tensor(slot_ids[i])
     
     return {
         'input_ids': padded_input_ids.to(DEVICE),

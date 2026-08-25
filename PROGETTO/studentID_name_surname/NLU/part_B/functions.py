@@ -90,13 +90,13 @@ def eval_loop_hf(data, criterion_slots, criterion_intents, model, tokenizer,
                         gt_slot = id2slot.get(gt_id, 'O')
                         
                         # Salva per la parola corrispondente
-                        if wid not in pred_slots_by_word:
+                        if wid not in pred_slots_by_word and wid is not None and wid < len(words):
                             pred_slots_by_word[wid] = pred_slot
                             gt_slots_by_word[wid] = gt_slot
                 
                 # Costruisci le sequenze allineate alle parole
-                pred_slots_seq = [pred_slots_by_word.get(w, 'O') for w in range(len(words))]
-                gt_slots_seq = [gt_slots_by_word.get(w, 'O') for w in range(len(words))]
+                pred_slots_seq = [pred_slots_by_word.get(wid, 'O') for wid in word_ids_i if wid is not None]
+                gt_slots_seq = [gt_slots_by_word.get(wid, 'O') for wid in word_ids_i if wid is not None]
                 
                 # Aggiungi alle liste se ci sono parole
                 if len(words) > 0:
