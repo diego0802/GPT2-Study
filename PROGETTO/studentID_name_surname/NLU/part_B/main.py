@@ -42,6 +42,47 @@ def experiment_2b():
     print(f"   Intent: {len(intent2id)}")
     
     configs = [
+        # ===== BERT BASE =====
+            {
+                "model_type": "bert",
+                "model_size": "base",
+                "hf_name": "bert-base-uncased",
+                "lr": 3e-5,
+                "batch_size": 32,
+                "dropout": 0.15,
+                "weight_decay": 0.01,
+                "n_epochs": 60,
+                "patience": 10,
+                "warmup_ratio": 0.1,
+            },
+            
+            # ===== BERT BASE - Dropout alto =====
+            {
+                "model_type": "bert",
+                "model_size": "base",
+                "hf_name": "bert-base-uncased",
+                "lr": 3e-5,
+                "batch_size": 32,
+                "dropout": 0.2,
+                "weight_decay": 0.01,
+                "n_epochs": 60,
+                "patience": 10,
+                "warmup_ratio": 0.1,
+            },
+            
+            # ===== BERT BASE - LR basso =====
+            {
+                "model_type": "bert",
+                "model_size": "base",
+                "hf_name": "bert-base-uncased",
+                "lr": 2e-5,
+                "batch_size": 32,
+                "dropout": 0.15,
+                "weight_decay": 0.02,
+                "n_epochs": 70,
+                "patience": 12,
+                "warmup_ratio": 0.1,
+            },
     # ===== GPT-2 BASE =====
     {
         "model_type": "gpt2",
@@ -83,6 +124,48 @@ def experiment_2b():
         "patience": 12,
         "warmup_ratio": 0.1,
     },
+
+     # ===== BERT LARGE =====
+        {
+            "model_type": "bert",
+            "model_size": "large",
+            "hf_name": "bert-large-uncased",
+            "lr": 1e-5,
+            "batch_size": 16,
+            "dropout": 0.1,
+            "weight_decay": 0.01,
+            "n_epochs": 40,
+            "patience": 8,
+            "warmup_ratio": 0.1,
+        },
+        
+        # ===== BERT LARGE - Dropout alto =====
+        {
+            "model_type": "bert",
+            "model_size": "large",
+            "hf_name": "bert-large-uncased",
+            "lr": 2e-5,
+            "batch_size": 16,
+            "dropout": 0.2,
+            "weight_decay": 0.01,
+            "n_epochs": 40,
+            "patience": 8,
+            "warmup_ratio": 0.1,
+        },
+        
+        # ===== BERT LARGE - LR basso =====
+        {
+            "model_type": "bert",
+            "model_size": "large",
+            "hf_name": "bert-large-uncased",
+            "lr": 1e-5,
+            "batch_size": 24,
+            "dropout": 0.15,
+            "weight_decay": 0.02,
+            "n_epochs": 50,
+            "patience": 10,
+            "warmup_ratio": 0.1,
+        },
     
     # ===== GPT-2 MEDIUM =====
     {
@@ -103,7 +186,7 @@ def experiment_2b():
         "model_type": "gpt2",
         "model_size": "medium",
         "hf_name": "openai-community/gpt2-medium",
-        "lr": 2e-5,
+        "lr": 1e-5,
         "batch_size": 16,
         "dropout": 0.2,
         "weight_decay": 0.01,
@@ -122,90 +205,6 @@ def experiment_2b():
         "dropout": 0.15,
         "weight_decay": 0.02,
         "n_epochs": 60,
-        "patience": 10,
-        "warmup_ratio": 0.1,
-    },
-    
-    # ===== BERT BASE =====
-    {
-        "model_type": "bert",
-        "model_size": "base",
-        "hf_name": "bert-base-uncased",
-        "lr": 3e-5,
-        "batch_size": 32,
-        "dropout": 0.15,
-        "weight_decay": 0.01,
-        "n_epochs": 60,
-        "patience": 10,
-        "warmup_ratio": 0.1,
-    },
-    
-    # ===== BERT BASE - Dropout alto =====
-    {
-        "model_type": "bert",
-        "model_size": "base",
-        "hf_name": "bert-base-uncased",
-        "lr": 3e-5,
-        "batch_size": 32,
-        "dropout": 0.2,
-        "weight_decay": 0.01,
-        "n_epochs": 60,
-        "patience": 10,
-        "warmup_ratio": 0.1,
-    },
-    
-    # ===== BERT BASE - LR basso =====
-    {
-        "model_type": "bert",
-        "model_size": "base",
-        "hf_name": "bert-base-uncased",
-        "lr": 2e-5,
-        "batch_size": 32,
-        "dropout": 0.15,
-        "weight_decay": 0.02,
-        "n_epochs": 70,
-        "patience": 12,
-        "warmup_ratio": 0.1,
-    },
-    
-    # ===== BERT LARGE =====
-    {
-        "model_type": "bert",
-        "model_size": "large",
-        "hf_name": "bert-large-uncased",
-        "lr": 2e-5,
-        "batch_size": 16,
-        "dropout": 0.1,
-        "weight_decay": 0.01,
-        "n_epochs": 40,
-        "patience": 8,
-        "warmup_ratio": 0.1,
-    },
-    
-    # ===== BERT LARGE - Dropout alto =====
-    {
-        "model_type": "bert",
-        "model_size": "large",
-        "hf_name": "bert-large-uncased",
-        "lr": 2e-5,
-        "batch_size": 16,
-        "dropout": 0.2,
-        "weight_decay": 0.01,
-        "n_epochs": 40,
-        "patience": 8,
-        "warmup_ratio": 0.1,
-    },
-    
-    # ===== BERT LARGE - LR basso =====
-    {
-        "model_type": "bert",
-        "model_size": "large",
-        "hf_name": "bert-large-uncased",
-        "lr": 1e-5,
-        "batch_size": 24,
-        "dropout": 0.15,
-        "weight_decay": 0.02,
-        "n_epochs": 50,
         "patience": 10,
         "warmup_ratio": 0.1,
     },

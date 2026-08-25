@@ -142,7 +142,6 @@ def eval_loop_hf(data, criterion_slots, criterion_intents, model, tokenizer,
 # In functions.py, modifica convert_to_conll_format:
 
 def convert_to_conll_format(slots_seq):
-    """Converte le etichette in formato che conll.py possa gestire"""
     converted = []
     for seq in slots_seq:
         converted_seq = []
@@ -150,9 +149,12 @@ def convert_to_conll_format(slots_seq):
             if slot == 'O':
                 converted_seq.append((word, 'O'))
             elif slot.startswith('B-') or slot.startswith('I-') or slot.startswith('E-') or slot.startswith('S-'):
-                converted_seq.append((word, slot))
+                # Se il suffisso è 'O', convertilo a 'O' semplice
+                if slot.split('-')[-1] == 'O':
+                    converted_seq.append((word, 'O'))
+                else:
+                    converted_seq.append((word, slot))
             else:
-                # Slot senza prefisso - usa B- come default
                 converted_seq.append((word, f"B-{slot}"))
         converted.append(converted_seq)
     return converted
