@@ -72,7 +72,7 @@ def eval_loop_hf(data, criterion_slots, criterion_intents, model, tokenizer,
                 # Recupera i word_ids per questo esempio
                 word_ids_i = batch['word_ids'][i]
                 
-                # Costruisci mappe parola -> slot
+                # Costruisci mappe parola -> slot (solo per token che hanno word_id e non sono speciali)
                 pred_slots_by_word = {}
                 gt_slots_by_word = {}
                 
@@ -84,33 +84,36 @@ def eval_loop_hf(data, criterion_slots, criterion_intents, model, tokenizer,
                     pred_id = output_slots[i][j].item()
                     pred_slot = id2slot.get(pred_id, 'O')
                     
-                    # GT per questo token (solo primo subtoken ha label)
+                    # GT per questo token
                     gt_id = batch['slot_ids'][i][j].item()
-                    if gt_id != -100:
+                    
+                    if gt_id != -100 and gt_id in id2slot:
                         gt_slot = id2slot.get(gt_id, 'O')
-                        
-                        # Salva per la parola corrispondente
-                        if wid not in pred_slots_by_word and wid is not None and wid < len(words):
+                    else:
+                        gt_slot = None  # Non abbiamo GT per questo token
+                    
+                    # Salva per la parola corrispondente
+                    if wid < len(words):
+                        # Per la prima volta che vediamo questa parola
+                        if wid not in pred_slots_by_word:
                             pred_slots_by_word[wid] = pred_slot
+                        if gt_slot is not None and wid not in gt_slots_by_word:
                             gt_slots_by_word[wid] = gt_slot
                 
                 # Costruisci le sequenze allineate alle parole
-                pred_slots_seq = [pred_slots_by_word.get(wid, 'O') for wid in word_ids_i if wid is not None]
-                gt_slots_seq = [gt_slots_by_word.get(wid, 'O') for wid in word_ids_i if wid is not None]
+                pred_slots_seq = [pred_slots_by_word.get(wid, 'O') for wid in range(len(words))]
+                gt_slots_seq = [gt_slots_by_word.get(wid, 'O') for wid in range(len(words))]
                 
-                # Aggiungi alle liste se ci sono parole
+                # Aggiungi alle liste
                 if len(words) > 0:
                     ref_slots.append(list(zip(words, gt_slots_seq)))
                     hyp_slots.append(list(zip(words, pred_slots_seq)))
     
     # Calcola metriche
-    if model_type == 'bert':
-        ref_slots_conll = convert_to_conll_format(ref_slots)
-        hyp_slots_conll = convert_to_conll_format(hyp_slots)
-    else:
-        ref_slots_conll = ref_slots
-        hyp_slots_conll = hyp_slots
-
+    # Converti in formato conll per valutazione
+    ref_slots_conll = convert_to_conll_format(ref_slots)
+    hyp_slots_conll = convert_to_conll_format(hyp_slots)
+    
     try:
         results = evaluate(ref_slots_conll, hyp_slots_conll)
         if results is None:
@@ -126,7 +129,7 @@ def eval_loop_hf(data, criterion_slots, criterion_intents, model, tokenizer,
     report_intent = classification_report(ref_intents, hyp_intents, zero_division=False, output_dict=True)
     intent_f1 = report_intent.get('macro avg', {}).get('f1-score', 0)
     
-    # Estrai metriche slot (con controllo None)
+    # Estrai metriche slot
     if results is not None:
         slot_f1 = results.get('total', {}).get('f', 0)
         slot_p = results.get('total', {}).get('p', 0)
@@ -145,12 +148,11 @@ def convert_to_conll_format(slots_seq):
         converted_seq = []
         for word, slot in seq:
             if slot == 'O':
-                converted_seq.append((word, 'O-O'))
-            elif slot.startswith('B-') or slot.startswith('I-'):
+                converted_seq.append((word, 'O'))
+            elif slot.startswith('B-') or slot.startswith('I-') or slot.startswith('E-') or slot.startswith('S-'):
                 converted_seq.append((word, slot))
             else:
-                # Etichette senza prefisso (come 'today_relative', 'state_code')
-                # Convertile in formato IOB
+                # Slot senza prefisso - usa B- come default
                 converted_seq.append((word, f"B-{slot}"))
         converted.append(converted_seq)
     return converted

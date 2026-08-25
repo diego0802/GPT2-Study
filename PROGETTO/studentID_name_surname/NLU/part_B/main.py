@@ -311,11 +311,11 @@ def experiment_2b():
                 if slot in slot2id:
                     all_slots.append(slot)
 
-        # ✅ Usa SOLO gli slot presenti nel training set
-        present_slots = list(set(all_slots))
+        # ✅ Converti in numpy array!
+        present_slots = np.array(list(set(all_slots)))
         class_weights = compute_class_weight('balanced', classes=present_slots, y=all_slots)
 
-        # Crea tensore per TUTTI gli slot (quelli non presenti restano 1)
+        # Crea tensore per TUTTI gli slot
         class_weights_tensor = torch.ones(len(slot2id), dtype=torch.float32).to(DEVICE)
         for slot, weight in zip(present_slots, class_weights):
             slot_id = slot2id[slot]
@@ -327,14 +327,10 @@ def experiment_2b():
         print(f"Slot Class weights shape: {class_weights_tensor.shape}")
 
         # --- Calcola class weights per gli intents ---
-        all_intents = []
-        for example in train_raw:
-            for intent in example['intent'].split():
-                if intent in intent2id:
-                    all_intents.append(intent)
+        all_intents = [example['intent'] for example in train_raw if example['intent'] in intent2id]
 
-        # ✅ Usa SOLO gli intent presenti nel training set
-        present_intents = list(set(all_intents))
+        # ✅ Converti in numpy array!
+        present_intents = np.array(list(set(all_intents)))
         class_weights_intents = compute_class_weight('balanced', classes=present_intents, y=all_intents)
 
         # Crea tensore per TUTTI gli intent
